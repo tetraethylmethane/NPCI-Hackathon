@@ -50,6 +50,7 @@ model User {
   membershipPayments      MembershipPayment[]
   clubApplications        ClubApplication[]
   snapshots               UserSnapshot[]
+  alerts                  Alert[]
 
   // SPRINT 2: Behavioral Baselining Fields
   riskScore     Int       @default(0)    // Current risk level (0-100+)
@@ -855,6 +856,16 @@ enum ActivityType {
   ACCOUNT_LOCKOUT
   ACCOUNT_RECOVERY
   MFA_CHALLENGE
+
+  // SPRINT 5 — CERT DATASET EVENT TYPES:
+  LOGON_SUCCESS
+  LOGON_FAILURE
+  LOGOFF
+  USB_DEVICE_CONNECTED
+  USB_FILE_COPY
+  HTTP_VISIT
+  EMAIL_SENT
+  EMAIL_RECEIVED
 }
 
 enum ProjectLifecycleStatus {
@@ -870,11 +881,50 @@ model UserSnapshot {
   userId      String
   riskScore   Int      // The risk score at that specific time
   baseline    Float    // The avgActionsDay at that specific time
-  vectorData  Json     // Stores [hour, access_frequency, sensitivity_level]
+  vectorData  Json     // Shape: { mlModel, zScore, isAnomaly, featureVector, topFeatures, explanation, timestamp }
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([createdAt])
+}
+
+// ==================== SPRINT 5: ALERT & INVESTIGATION MODELS ====================
+
+model Alert {
+  id          String        @id @default(cuid())
+  userId      String
+  riskScore   Int
+  severity    AlertSeverity
+  confidence  Float         @default(0.0) // ML model confidence [0, 1]
+  explanation Json?         // SHAP top_features array
+  status      AlertStatus   @default(OPEN)
+  assignedTo  String?       // Analyst user ID
+  resolution  String?       // "TRUE_POSITIVE" | "FALSE_POSITIVE"
+  notes       String?       @db.Text
+  resolvedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([severity, status])
+  @@index([createdAt])
+}
+
+enum AlertSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum AlertStatus {
+  OPEN
+  ASSIGNED
+  ACKNOWLEDGED
+  RESOLVED
+  FALSE_POSITIVE
 }

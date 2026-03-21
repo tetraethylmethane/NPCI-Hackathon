@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /c/Users/swast/Downloads/NPCI-main/NPCI-main/app/\\\\\\(dashboard\\\\\\)/)",
+      "Bash(find /c/Users/swast/Downloads/NPCI-main/NPCI-main/app -type f -name *.tsx -o -name *.ts)"
+    ]
+  }
+}

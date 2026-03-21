@@ -1,0 +1,25 @@
+version: "3.9"
+
+services:
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount dataset so the ML service can read CSVs without copying them into the image
+      - ./dataset:/app/../dataset:ro
+      # Persist trained model weights across container restarts
+      - ml_weights:/app/models/weights
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  ml_weights:
