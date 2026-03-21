@@ -46,6 +46,10 @@ No test suite is configured. There is no `npm test` command.
 No `.env` is checked in. Required vars:
 - `DATABASE_URL` — PostgreSQL connection string (Neon)
 - `ML_SERVICE_URL` — defaults to `http://localhost:8000` if unset (see `lib/env.ts`)
+- `ANONYMIZATION_SECRET` — HMAC key for user-ID pseudonymization (Python + TS must share this value)
+- `FIELD_ENCRYPTION_KEY` — 64-char hex AES-256 key for `lastLocation` column encryption (`lib/crypto/fieldEncryption.ts`)
+- `SESSION_SECRET` — HMAC key for signing `npci_session` cookies (`lib/auth/rbac.ts`)
+- `DEMO_MODE=true` — enable `/api/auth/demo-login` endpoint for evaluators (disable in production)
 
 Constants exported from `lib/env.ts`: `ML_SERVICE_URL`, `ALERT_THRESHOLD` (70), `Z_THRESHOLD` (2.5), `WINDOW_DAYS` (30).
 
@@ -60,7 +64,8 @@ Data Pipeline (Python)  →  ML Engine (FastAPI)  →  Dashboard (Next.js)
 See [docs/sprint-0/architecture.md](docs/sprint-0/architecture.md) for the full architecture diagram and [docs/sprint-0/gap-analysis.md](docs/sprint-0/gap-analysis.md) for requirement-vs-implementation mapping.
 
 ### Layer 1 — Data Pipeline (`ml-service/pipeline/`)
-- `ingest.py` — loads all 5 CERT CSV sources (`logon`, `device`, `file`, `email`, `http`) and normalises timestamps/columns
+- `ingest.py` — loads all 5 CERT CSV sources (`logon`, `device`, `file`, `email`, `http`), normalises timestamps/columns, **then pseudonymizes** via `anonymize.py` before writing Parquet
+- `anonymize.py` — Sprint 5: HMAC-SHA256 pseudonymization of `user_id`, `pc`, email addresses, URLs; returns `IdentityMapping` records to be written to Postgres
 - `features.py` — extracts a **20-dimensional feature vector** per user (5 logon + 4 device + 5 file + 4 email + 2 HTTP features). `FEATURE_NAMES` list is the canonical reference for feature ordering.
 - `transform.py`, `peer_groups.py` — data transformation and peer-group baselining
 - `run_etl.py` — orchestrates full ETL; `seed_postgres.py` — writes processed data to Postgres
@@ -94,8 +99,13 @@ Models are loaded at startup via FastAPI lifespan; CORS is configured for `http:
 **Existing:**
 - `lib/analysis.ts` — tries FastAPI `/analyze/user/{id}` first; falls back to Z-Score if service unreachable
 - `lib/cron.ts` — nightly job at 00:00; calls `POST /analyze/batch` on FastAPI
-- `lib/actions/security.ts` — LOCK/UNLOCK server actions
+- `lib/actions/security.ts` — LOCK/UNLOCK server actions (Sprint 5: ADMIN-only role guard + `createAuditEntry`)
 - `lib/simulate.ts` — event simulation helpers
+- `lib/audit.ts` — Sprint 5: `createAuditEntry()` helper + Prisma extension enforcing append-only on `ActivityLog`
+- `lib/auth/rbac.ts` — Sprint 5: `SecurityRole` type, `PERMISSIONS` map, `can()`, signed session cookie encode/decode
+- `lib/crypto/anonymization.ts` — Sprint 5: HMAC-SHA256 user-ID and email pseudonymization (Node.js)
+- `lib/crypto/fieldEncryption.ts` — Sprint 5: AES-256-GCM encrypt/decrypt for `lastLocation` and other sensitive columns
+- `middleware.ts` — Sprint 5: Next.js Edge middleware enforcing RBAC on all matched routes
 - `app/(dashboard)/page.tsx` — main command center
 - `app/api/ml/analyze/route.ts` — Next.js proxy to FastAPI for on-demand user analysis
 - `app/api/admin/trigger-audit/route.ts` — manually triggers batch analysis
@@ -112,10 +122,15 @@ Models are loaded at startup via FastAPI lifespan; CORS is configured for `http:
 
 The Prisma schema has four concern areas:
 
-1. **Security/Fraud**: `User` (`riskScore`, `isFlagged`, `status`), `UserSnapshot`, `ActivityLog`, `Alert` (Sprint 4)
+1. **Security/Fraud**: `User` (`riskScore`, `isFlagged`, `status`, `securityRole`), `UserSnapshot`, `ActivityLog`, `Alert`, `IdentityMapping` (Sprint 5)
 2. **Collaboration Workspace**: `Project`, `UserOnProject`, `Task`, `Commit`, `Meeting`, `ProjectFile`
 3. **Public Marketplace**: `ProjectPost`, `ProjectApplication`, `Company`, `ProjectSeeker`
 4. **Supporting**: `FinancialMetrics`, `MembershipSubscription`, `Blog`, `Resource`
+
+Sprint 5 additions to schema:
+- `User.securityRole: SecurityRole` (`ADMIN` | `ANALYST` | `VIEWER`, default `VIEWER`) — dashboard RBAC
+- `IdentityMapping` — stores SHA-256(CERT user_id) → original_id; ADMIN-only via `/api/admin/audit-log`
+- `pgcrypto` extension enabled in datasource for future Postgres-side encryption functions
 
 `UserSnapshot.vectorData` JSON shape (after ML integration):
 ```json
@@ -145,4 +160,4 @@ The Prisma schema has four concern areas:
 | 2 | Isolation Forest + RF + SHAP | `ml-service/models/` |
 | 3 | FastAPI integration with Next.js | Replace Z-Score calls |
 | 4 | Real-time SSE alert stream | `app/api/alerts/stream/` |
-| 5 | Investigator workflow + demo | `app/(dashboard)/investigations/` |
+| 5 | Privacy, Security & Compliance | `lib/crypto/`, `lib/auth/`, `middleware.ts`, `ml-service/pipeline/anonymize.py` |

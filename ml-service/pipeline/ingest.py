@@ -45,6 +45,8 @@ from typing import Optional
 import pandas as pd
 import numpy as np
 
+from pipeline.anonymize import pseudonymize_dataframe
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -426,6 +428,9 @@ def run_pipeline(
         "http":   _normalize_http,
     }
 
+    # Accumulate identity mappings across all sources for deduplication
+    all_mappings: list[dict] = []
+
     results = {}
     for src in all_sources:
         csv_path = dataset_dir / f"{src}.csv"
@@ -435,6 +440,11 @@ def run_pipeline(
             continue
         try:
             df = loaders[src](csv_path)
+
+            # Sprint 5 — pseudonymize before Parquet write
+            df, mappings = pseudonymize_dataframe(df, source=src)
+            all_mappings.extend(mappings)
+
             out_path = output_dir / f"{src}.parquet"
             df.to_parquet(out_path, index=False, engine="pyarrow",
                           partition_cols=None)   # partitioning done at transform layer
@@ -452,6 +462,19 @@ def run_pipeline(
         except Exception as exc:
             logger.exception("  ✗ Failed to process %s: %s", src, exc)
             results[src] = {"status": "error", "reason": str(exc)}
+
+    # Deduplicate mappings (same user appears in multiple sources)
+    seen_hashes: set[str] = set()
+    deduped: list[dict] = []
+    for m in all_mappings:
+        if m["hashedUserId"] not in seen_hashes:
+            seen_hashes.add(m["hashedUserId"])
+            deduped.append(m)
+    results["_identity_mappings"] = deduped
+    logger.info(
+        "  Sprint 5 anonymization: %d unique identity mappings generated",
+        len(deduped),
+    )
 
     return results
 
