@@ -81,6 +81,10 @@ async function _persistMLResult(userId: string, r: MLAnalysisResult): Promise<vo
         lstmScore:            r.lstm_score ?? null,
         anomalyFlags:         r.anomaly_flags         ?? {},
         contributingFeatures: r.contributing_features ?? [],
+        featureVector:        r.feature_vector ? {
+          names:  r.feature_names ?? [],
+          values: r.feature_vector,
+        } : undefined,
         modelVersion:         r.model_version ?? "2.0.0",
         alertGenerated,
         severity,
@@ -299,6 +303,9 @@ interface MLAnalysisResult {
   contributing_features?: ContributingFeature[];
   model_version?:       string;
   analyzed_at:          string;
+  // Sprint 3: full 32-dim feature vector for lineage storage
+  feature_vector?:      number[];
+  feature_names?:       string[];
 }
 
 interface ContributingFeature {

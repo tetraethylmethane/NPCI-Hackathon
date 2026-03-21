@@ -71,9 +71,12 @@ def write_risk_snapshot(
     contributing_features: list,
     model_version: str = "2.0.0",
     alert_generated: bool = False,
+    feature_vector: dict | None = None,
 ) -> str:
     """
     Insert one RiskSnapshot row.  Returns the new snapshot id.
+    feature_vector: output of pipeline.features.build_feature_payload() — stored in
+    the RiskSnapshot.featureVector column for full lineage back to raw events.
     """
     severity     = _severity(threat_score)
     snap_id      = _cuid()
@@ -82,12 +85,12 @@ def write_risk_snapshot(
         conn.execute(text("""
             INSERT INTO "RiskSnapshot"
               (id, "userId", "threatScore", "zScore", "ifScore", "lstmScore",
-               "anomalyFlags", "contributingFeatures", "modelVersion",
+               "anomalyFlags", "contributingFeatures", "featureVector", "modelVersion",
                "alertGenerated", severity, "createdAt")
             VALUES
               (:id, :uid, :threat, :z, :if_, :lstm,
-               CAST(:flags AS jsonb), CAST(:features AS jsonb), :ver,
-               :alert, :sev, now())
+               CAST(:flags AS jsonb), CAST(:features AS jsonb), CAST(:fvec AS jsonb),
+               :ver, :alert, :sev, now())
         """), {
             "id":       snap_id,
             "uid":      user_id,
@@ -97,6 +100,7 @@ def write_risk_snapshot(
             "lstm":     lstm_score,
             "flags":    json.dumps(anomaly_flags),
             "features": json.dumps(contributing_features, default=str),
+            "fvec":     json.dumps(feature_vector, default=str) if feature_vector is not None else None,
             "ver":      model_version,
             "alert":    alert_generated,
             "sev":      severity,

@@ -8,7 +8,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [pgvector(map: "vector")]
+  extensions = [pgvector(map: "vector"), pgcrypto]
 }
 model User {
   id                    String                 @id @default(cuid())
@@ -61,8 +61,11 @@ model User {
 
   // SPRINT 4 NEW FIELDS
   status        String    @default("ACTIVE") // ACTIVE, LOCKED, or SUSPENDED
-  lastLocation  String?   @default("Mumbai, IN") // For Geo-fencing
+  lastLocation  String?   @default("Mumbai, IN") // For Geo-fencing (stored encrypted in production)
   isMfaEnabled  Boolean   @default(false)
+
+  // SPRINT 5 — Security role for dashboard RBAC
+  securityRole  SecurityRole @default(VIEWER)
 }
 
 model Account {
@@ -710,6 +713,13 @@ model UserProfile {
 
 // ==================== ENUMS ====================
 
+// SPRINT 5 — Dashboard RBAC roles
+enum SecurityRole {
+  ADMIN    // Full access: view all, lock/unlock accounts, dismiss alerts
+  ANALYST  // Alerts + drilldown; cannot lock accounts or view audit log
+  VIEWER   // Summary stats only; no drilldown, no actions
+}
+
 enum UserType {
   COMPANY
   Project_SEEKER
@@ -928,6 +938,19 @@ enum AlertStatus {
   ACKNOWLEDGED
   RESOLVED
   FALSE_POSITIVE
+}
+
+// ==================== SPRINT 5: IDENTITY ANONYMIZATION MAPPING ====================
+// Stores the SHA-256(user_id) → original user_id mapping.
+// Access restricted to ADMIN role only; never exposed via public API routes.
+model IdentityMapping {
+  id           String   @id @default(cuid())
+  hashedUserId String   @unique  // SHA-256(original CERT user identifier)
+  originalId   String            // Original CERT user ID (e.g. "ACM2278")
+  source       String   @default("CERT") // "CERT" | "INTERNAL"
+  createdAt    DateTime @default(now())
+
+  @@index([hashedUserId])
 }
 
 // ==================== SPRINT 2: RISK SNAPSHOT (ML Engine Output) ====================

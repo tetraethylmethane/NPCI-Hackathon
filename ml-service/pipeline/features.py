@@ -323,9 +323,7 @@ def _baseline_features(logon_df: pd.DataFrame, device_df: pd.DataFrame) -> list[
     """Indices 28–31: retained high-signal Sprint-1 features."""
     # 28 — after_hours_logon_ratio  (work-hours definition: outside 08:00-18:00)
     if not logon_df.empty:
-        logons = logon_df[logon_df["action_type"].isin(
-            ["LOGON_SUCCESS"]) | logon_df.get(
-            "activity", pd.Series(dtype=str)).str.lower().eq("logon")]
+        logons = logon_df[logon_df["action_type"] == "LOGON_SUCCESS"]
         n_logons = max(len(logons), 1)
         ah_logon = _is_after_hours(logons["timestamp"]).sum() if not logons.empty else 0
         ah_ratio = ah_logon / n_logons

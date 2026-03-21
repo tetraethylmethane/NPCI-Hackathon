@@ -21,7 +21,7 @@ from db import write_risk_snapshot, update_user_risk, create_alert_if_needed, wr
 from evaluation.eval_metrics import run_evaluation
 from models.trainer import run_training
 from models.lstm_autoencoder import build_sequences_from_daily
-from pipeline.features import get_user_vector, load_feature_matrix
+from pipeline.features import get_user_vector, load_feature_matrix, build_feature_payload
 from pipeline.ingest import run_pipeline
 from pipeline.transform import load_daily_snapshots
 
@@ -159,6 +159,18 @@ def _run_batch() -> None:
 
 def _persist_result(result: dict) -> None:
     """Write RiskSnapshot, update User, and conditionally create Alert."""
+    # Build the full feature vector payload for lineage storage
+    fv_payload: dict | None = None
+    fv_list = result.get("feature_vector")
+    if fv_list is not None:
+        try:
+            fv_payload = build_feature_payload(
+                result["user_id"],
+                np.array(fv_list, dtype=np.float32),
+            )
+        except Exception as e:
+            logger.warning("Could not build feature payload for %s: %s", result.get("user_id"), e)
+
     try:
         write_risk_snapshot(
             user_id=result["user_id"],
@@ -170,6 +182,7 @@ def _persist_result(result: dict) -> None:
             contributing_features=result.get("contributing_features", []),
             model_version=result.get("model_version", "2.0.0"),
             alert_generated=result.get("is_anomaly", False),
+            feature_vector=fv_payload,
         )
         update_user_risk(
             result["user_id"],
