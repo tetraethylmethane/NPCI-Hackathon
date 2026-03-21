@@ -50,6 +50,7 @@ model User {
   membershipPayments      MembershipPayment[]
   clubApplications        ClubApplication[]
   snapshots               UserSnapshot[]
+  riskSnapshots           RiskSnapshot[]
   alerts                  Alert[]
 
   // SPRINT 2: Behavioral Baselining Fields
@@ -927,4 +928,41 @@ enum AlertStatus {
   ACKNOWLEDGED
   RESOLVED
   FALSE_POSITIVE
+}
+
+// ==================== SPRINT 2: RISK SNAPSHOT (ML Engine Output) ====================
+
+model RiskSnapshot {
+  id                   String        @id @default(cuid())
+  userId               String
+
+  // Composite threat score [0–100] — final output shown on dashboard
+  threatScore          Int
+
+  // Per-layer scores (null = layer not run / model not trained)
+  zScore               Float?        // Layer 1: Z-Score value (unbounded; stored raw)
+  ifScore              Float?        // Layer 2: Isolation Forest score [0, 100]
+  lstmScore            Float?        // Layer 3: LSTM reconstruction error [0, 100]
+
+  // Which layers fired above their thresholds
+  anomalyFlags         Json          // { zScore: bool, isoForest: bool, lstm: bool }
+
+  // SHAP top-3 feature attributions from explainability layer
+  contributingFeatures Json          // [{ name, label, value, impact, direction }, ...]
+
+  // Sprint 3 — full 32-dimensional feature vector with lineage
+  featureVector        Json?         // { names: [...], values: [...], groups: {...} }
+
+  // Audit metadata
+  modelVersion         String        @default("2.0.0")
+  alertGenerated       Boolean       @default(false)
+  severity             AlertSeverity @default(LOW)
+
+  createdAt            DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([threatScore])
+  @@index([createdAt])
 }

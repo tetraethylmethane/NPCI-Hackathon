@@ -2,13 +2,23 @@ fastapi==0.115.0
 uvicorn[standard]==0.30.6
 pydantic==2.9.2
 
-# ML
+# ML — core
 scikit-learn==1.5.2
 numpy==1.26.4
 pandas==2.2.3
 joblib==1.4.2
 shap==0.46.0
+scipy==1.14.1
 
-# Database (optional — for direct Postgres writes from ML service)
+# ML — Layer 3 LSTM (optional, CPU-only build ~200 MB)
+# Install separately if needed:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# torch==2.4.1+cpu
+
+# Parquet I/O
+pyarrow==17.0.0
+
+# Database
 psycopg2-binary==2.9.9
 sqlalchemy==2.0.36
+python-dotenv==1.0.1

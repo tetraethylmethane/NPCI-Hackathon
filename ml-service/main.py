@@ -1,25 +1,35 @@
 """
-NPCI PS3 — ML Microservice
-FastAPI service exposing the Insider Threat Detection engine.
+NPCI PS3 — ML Microservice  (Sprint 2)
+========================================
+FastAPI service exposing the 3-layer Insider Threat Detection engine.
 
-Endpoints:
-  POST /analyze/batch          — run full analysis for all users
-  POST /analyze/user/{user_id} — on-demand single-user analysis
-  GET  /explain/{user_id}      — SHAP explanation for latest risk score
-  POST /ingest/cert            — batch-load CERT dataset CSVs
-  GET  /model/status           — model version + last trained timestamp
-  GET  /health                 — liveness probe
+Endpoints (full docs at /docs):
+  POST /analyze/user/{user_id}  — run full 3-layer analysis, write to Postgres
+  POST /analyze/batch           — background full-population scan
+  GET  /explain/{user_id}       — SHAP feature attribution
+  POST /ingest/cert             — batch-load CERT CSV → Parquet
+  POST /train                   — train all models on Parquet data (background)
+  POST /evaluate                — precision/recall report (background)
+  GET  /model/status            — readiness + latest eval metrics
+  GET  /health                  — liveness probe
 """
 
+import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from pipeline.ingest import ingest_cert_dataset
 from models.ensemble import EnsembleModel
 from explainability.shap_explainer import SHAPExplainer
-from api.routes import router as api_router
+from api.routes import router as api_router, set_models
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt="%H:%M:%S",
+)
 
 ensemble: EnsembleModel | None = None
 explainer: SHAPExplainer | None = None
@@ -27,25 +37,36 @@ explainer: SHAPExplainer | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load models on startup."""
     global ensemble, explainer
+
     ensemble = EnsembleModel()
-    ensemble.load()          # loads persisted weights from models/weights/
-    explainer = SHAPExplainer(ensemble.rf_model)
-    print("✅ ML models loaded and ready.")
+    ensemble.load()   # loads from models/weights/ — no-op if not trained yet
+
+    if ensemble.rf_model.trained:
+        explainer = SHAPExplainer(ensemble.rf_model)
+        logger.info("SHAP explainer ready.")
+    else:
+        logger.warning("RF not trained — SHAP explanations unavailable until /train runs.")
+
+    set_models(ensemble, explainer)
+    logger.info("ML service ready.  IF=%s  RF=%s  LSTM=%s",
+                "✓" if ensemble.if_model.trained   else "—",
+                "✓" if ensemble.rf_model.trained   else "—",
+                "✓" if ensemble.lstm_model.trained else "—")
     yield
-    print("ML service shutting down.")
+    logger.info("ML service shutting down.")
 
 
 app = FastAPI(
-    title="NPCI Insider Threat ML Service",
-    version="1.0.0",
+    title="NPCI Insider Threat Detection — ML Service",
+    version="2.0.0",
+    description="3-layer detection engine: Z-Score + Isolation Forest + LSTM Autoencoder",
     lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js dev server
+    allow_origins=["http://localhost:3000"],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
@@ -53,6 +74,11 @@ app.add_middleware(
 app.include_router(api_router)
 
 
-@app.get("/health")
+@app.get("/health", tags=["meta"])
 def health():
-    return {"status": "ok", "model_loaded": ensemble is not None}
+    return {
+        "status": "ok",
+        "isolation_forest": ensemble.if_model.trained   if ensemble else False,
+        "random_forest":    ensemble.rf_model.trained   if ensemble else False,
+        "lstm":             ensemble.lstm_model.trained if ensemble else False,
+    }
