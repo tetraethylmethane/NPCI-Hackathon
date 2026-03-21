@@ -1,0 +1,880 @@
+// prisma/schema.prisma
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+  engineType      = "library"
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+model User {
+  id                    String                 @id @default(cuid())
+  name                  String?
+  email                 String                 @unique
+  emailVerified         DateTime?
+  image                 String?
+  onboardingCompleted   Boolean                @default(false)
+  userType              UserType?
+  stripeCustomerId      String?                @unique
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  role                  String                 @default("USER")
+  profile               UserProfile?
+  // Existing Relations
+  AIProfileConversation AIProfileConversation?
+  accounts              Account[]
+  Authenticator         Authenticator[]
+  Company               Company?
+  ProjectApplications   ProjectApplication[]
+  projectComments       ProjectComment[]
+  createdProjects       ProjectPost[]          @relation("UserCreatedProjects")
+  ProjectSeeker         ProjectSeeker?
+  resources             Resource[]
+  SavedProjectPost      SavedProjectPost[]
+  sessions              Session[]
+
+  // Collaboration workspace relations
+  ownedProjects           Project[]                @relation("ProjectOwner")
+  projectMemberships      UserOnProject[]
+  questions               Question[]
+  notifications           Notification[]
+  activityLogs            ActivityLog[]
+  tasksCreated            Task[]                   @relation("TaskCreator")
+  tasksAssigned           Task[]                   @relation("TaskAssignee")
+  uploadedFiles           ProjectFile[]            @relation("UploadedFiles")
+  notificationPreferences NotificationPreferences?
+  memberships             MembershipSubscription[]
+  membershipPayments      MembershipPayment[]
+  clubApplications        ClubApplication[]
+  snapshots               UserSnapshot[]
+
+  // SPRINT 2: Behavioral Baselining Fields
+  riskScore     Int       @default(0)    // Current risk level (0-100+)
+  avgActionsDay Float     @default(0.0)  // Behavioral baseline (The "Normal")
+  lastAnalyzed  DateTime?                // Timestamp of last vectorization
+  isFlagged     Boolean   @default(false) // Manual or Auto flag for high-risk
+
+  // SPRINT 4 NEW FIELDS
+  status        String    @default("ACTIVE") // ACTIVE, LOCKED, or SUSPENDED
+  lastLocation  String?   @default("Mumbai, IN") // For Geo-fencing
+  isMfaEnabled  Boolean   @default(false)
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+model Authenticator {
+  credentialID         String  @unique
+  userId               String
+  providerAccountId    String
+  credentialPublicKey  String
+  counter              Int
+  credentialDeviceType String
+  credentialBackedUp   Boolean
+  transports           String?
+  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, credentialID])
+}
+
+model Company {
+  id              String        @id @default(uuid())
+  name            String
+  location        String
+  logo            String
+  website         String
+  Contact         String?
+  about           String
+  userId          String        @unique
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  user            User          @relation(fields: [userId], references: [id])
+  companyProjects ProjectPost[] @relation("CompanyProjects")
+}
+
+model ProjectSeeker {
+  id        String   @id @default(uuid())
+  name      String
+  about     String
+  resume    String?
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model ProjectPost {
+  id                 String               @id @default(uuid())
+  ProjectTitle       String
+  PayFrom            Int
+  PayTo              Int
+  ProjectDescription String
+  listingDuration    Int
+  benefits           String[]
+  status             ProjectPostStatus    @default(ACTIVE)
+  applications       Int                  @default(0)
+  companyId          String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  creatorId          String?
+  projectType        ProjectCreatorType   @default(USER)
+  projectVideo       String?
+  // Optional link to collaboration workspace project
+  workspaceProjectId String?              @unique
+  ProjectApplication ProjectApplication[]
+  comments           ProjectComment[]
+  company            Company?             @relation("CompanyProjects", fields: [companyId], references: [id], onDelete: Cascade)
+  creator            User?                @relation("UserCreatedProjects", fields: [creatorId], references: [id], onDelete: Cascade)
+  SavedProjectPost   SavedProjectPost[]
+  workspaceProject   Project?             @relation(fields: [workspaceProjectId], references: [id])
+  financialMetrics   FinancialMetrics?
+}
+
+model FinancialMetrics {
+  id                String   @id @default(cuid())
+  projectId         String   @unique
+  // Raw founder inputs
+  customersAcquired Int?
+  marketingSpend    Float?
+  monthlyRevenue    Float?
+  arpu              Float?
+  churnRate         Float? // decimal (0.05 = 5%)
+  grossMargin       Float? // decimal (0.70 = 70%)
+  cogs              Float?
+  mrr               Float?
+  revenueGrowthMoM  Float? // decimal (0.12 = 12%)
+  burnRate          Float?
+  runwayMonths      Float?
+  industryMultiple  Float?
+  // Derived intelligence
+  arr               Float?
+  cac               Float?
+  ltv               Float?
+  ltvToCacRatio     Float?
+  paybackPeriod     Float?
+  projectedArr12m   Float?
+  valuationEstimate Float?
+  signalScore       Float?
+  signalLabel       String?
+  decisionSummary   String?
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
+
+  project ProjectPost @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model SavedProjectPost {
+  id        String      @id @default(uuid())
+  ProjectId String
+  userId    String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  Project   ProjectPost @relation(fields: [ProjectId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ProjectId])
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  name      String
+  role      String
+  imageUrl  String
+  createdAt DateTime @default(now())
+}
+
+enum ResourceStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Resource {
+  id        String         @id @default(cuid())
+  title     String
+  content   String
+  category  String
+  updatedAt DateTime       @updatedAt
+  createdAt DateTime       @default(now())
+  authorId  String?
+  tags      String[]
+  thumbnail String         @default("https://placehold.co/600x300/f0f0f0/999?text=Resource")
+  views     Int            @default(0)
+  slug      String         @unique
+  status    ResourceStatus @default(PENDING)
+  postToTwitter        Boolean   @default(false)
+  postToXcelitSubreddit Boolean   @default(false)
+  postToSubreddits     String[]  @default([])
+  twitterPostUrl       String?
+  redditPostUrls       Json?     // { "subreddit": "url" }
+  reviewedById         String?
+  reviewedAt           DateTime?
+  adminReviewNotes     String?
+  author    User?    @relation(fields: [authorId], references: [id])
+}
+
+model PlatformFeedback {
+  id        String   @id @default(cuid())
+  message   String
+  userId    String?
+  email     String?
+  createdAt DateTime @default(now())
+}
+
+model ErrorLog {
+  id        String   @id @default(cuid())
+  area      String
+  message   String
+  metadata  Json?
+  stack     String?
+  createdAt DateTime @default(now())
+}
+
+model SiteVisit {
+  id        String   @id @default(cuid())
+  path      String
+  referrer  String?
+  userAgent String?
+  userId    String?
+  createdAt DateTime @default(now())
+}
+
+model AffiliateApplication {
+  id        String   @id @default(cuid())
+  fullName  String
+  email     String   @unique
+  website   String?
+  audience  String
+  message   String?
+  status    String   @default("pending")
+  createdAt DateTime @default(now())
+}
+
+model AffiliateWaitlist {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  website   String?
+  audience  String?
+  message   String?
+  createdAt DateTime @default(now())
+  name      String?
+}
+
+model MembershipSubscription {
+  id                   String             @id @default(cuid())
+  userId               String
+  tier                 MembershipTier
+  status               SubscriptionStatus @default(PENDING)
+  provider             String             @default("PAYPAL")
+  providerOrderId      String?            @unique
+  providerCaptureId    String?            @unique
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  autoRenew            Boolean            @default(true)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  user     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payments MembershipPayment[]
+
+  @@index([userId, status])
+}
+
+model MembershipPayment {
+  id               String   @id @default(cuid())
+  subscriptionId   String
+  userId           String
+  provider         String   @default("PAYPAL")
+  providerOrderId  String
+  providerCaptureId String?
+  amount           String
+  currency         String
+  status           String
+  rawPayload       Json?
+  createdAt        DateTime @default(now())
+
+  subscription MembershipSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerOrderId])
+  @@index([userId, createdAt])
+}
+
+model ClubApplication {
+  id          String                @id @default(cuid())
+  userId      String
+  fullName    String
+  email       String
+  thesis      String
+  linkedinUrl String?
+  website     String?
+  notes       String?
+  status      ClubApplicationStatus @default(PENDING)
+  adminReviewNotes String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+model Blog {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  content     String
+  coverImage  String?
+  description String?
+  publishedAt DateTime @default(now())
+}
+
+model ProjectApplication {
+  id          String            @id @default(cuid())
+  projectId   String
+  applicantId String
+  message     String?
+  createdAt   DateTime          @default(now())
+  status      ApplicationStatus @default(PENDING)
+  applicant   User              @relation(fields: [applicantId], references: [id])
+  project     ProjectPost       @relation(fields: [projectId], references: [id])
+}
+
+model ShareYourWorkSubmission {
+  id                String   @id @default(cuid())
+  fullName          String
+  email             String
+  shortDescription  String   @db.Text
+  message           String?  @db.Text
+  workDepartment    String
+  workLink          String?
+  status            String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminReviewNotes  String?  @db.Text
+  reviewedById      String?
+  reviewedAt        DateTime?
+  createdAt         DateTime @default(now())
+}
+
+model ContactSubmission {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+}
+
+model ProjectComment {
+  id        String           @id @default(cuid())
+  projectId String
+  authorId  String
+  content   String
+  createdAt DateTime         @default(now())
+  parentId  String?
+  parent    ProjectComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   ProjectComment[] @relation("CommentReplies")
+
+  author  User        @relation(fields: [authorId], references: [id])
+  project ProjectPost @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@index([parentId])
+}
+
+model AIProfileConversation {
+  id        String   @id
+  userId    String   @unique
+  messages  Json[]
+  summary   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==================== COLLABORATION WORKSPACE MODELS ====================
+
+model Project {
+  id          String                 @id @default(cuid())
+  name        String
+  description String?
+  githubUrl   String
+  githubToken String? // AES-256-GCM encrypted via lib/crypto/tokenEncryption.ts — NEVER store plaintext
+  userId      String
+  archived    Boolean                @default(false)
+  // Collaboration lifecycle status (distinct from public listing status)
+  status      ProjectLifecycleStatus @default(OPEN)
+  visibility  ProjectVisibility      @default(PRIVATE)
+  settings    Json? // Store project-specific settings
+  lastSyncAt  DateTime?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  owner                User                  @relation("ProjectOwner", fields: [userId], references: [id], onDelete: Cascade)
+  members              UserOnProject[]
+  commits              Commit[]
+  meetings             Meeting[]
+  questions            Question[]
+  sourceCodeEmbeddings SourceCodeEmbedding[]
+  activityLogs         ActivityLog[]
+  notifications        Notification[]
+  tasks                Task[]
+  // Optional back-reference to public listing
+  projectPost          ProjectPost?
+  files                ProjectFile[]
+
+  @@index([userId])
+  @@index([archived])
+}
+
+model ProjectFile {
+  id         String   @id @default(cuid())
+  name       String
+  url        String
+  key        String   @unique
+  size       Int
+  mimeType   String
+  projectId  String
+  uploaderId String
+  createdAt  DateTime @default(now())
+
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  uploader User    @relation("UploadedFiles", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model UserOnProject {
+  id        String      @id @default(cuid())
+  userId    String
+  projectId String
+  role      ProjectRole @default(MEMBER)
+  joinedAt  DateTime    @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+}
+
+model SourceCodeEmbedding {
+  id               String                     @id @default(cuid())
+  fileName         String
+  filePath         String
+  sourceCode       String                     @db.Text
+  summary          String                     @db.Text
+  summaryEmbedding Unsupported("vector(768)")
+  language         String?
+  complexity       Int?
+  linesOfCode      Int?
+  projectId        String
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([fileName])
+}
+
+model Commit {
+  id                 String          @id @default(cuid())
+  commitHash         String          @unique
+  commitMessage      String
+  commitAuthorName   String
+  commitAuthorEmail  String
+  commitAuthorAvatar String
+  commitDate         DateTime
+  summary            String?         @db.Text
+  filesChanged       String[]
+  additions          Int             @default(0)
+  deletions          Int             @default(0)
+  category           CommitCategory?
+  branchName         String?
+  projectId          String
+  createdAt          DateTime        @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([commitDate])
+}
+
+model Meeting {
+  id            String        @id @default(cuid())
+  name          String
+  description   String?
+  audioUrl      String
+  transcription String?       @db.Text
+  summary       String?       @db.Text
+  duration      Int? // in seconds
+  speakerCount  Int?
+  status        MeetingStatus @default(PROCESSING)
+  projectId     String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  issues      MeetingIssue[]
+  actionItems ActionItem[]
+
+  @@index([projectId])
+  @@index([createdAt])
+}
+
+model MeetingIssue {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  startTime   Int // timestamp in seconds
+  endTime     Int // timestamp in seconds
+  speaker     String?
+  category    String?
+  meetingId   String
+  createdAt   DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+}
+
+model ActionItem {
+  id          String           @id @default(cuid())
+  title       String
+  description String?
+  assignee    String?
+  dueDate     DateTime?
+  status      ActionItemStatus @default(PENDING)
+  priority    Priority         @default(MEDIUM)
+  meetingId   String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
+  @@index([status])
+}
+
+model Question {
+  id              String   @id @default(cuid())
+  question        String   @db.Text
+  answer          String?  @db.Text
+  filesReferenced String[]
+  category        String?
+  isPublic        Boolean  @default(false)
+  upvotes         Int      @default(0)
+  views           Int      @default(0)
+  projectId       String
+  userId          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  link      String?
+  metadata  Json?
+  userId    String
+  projectId String?
+  createdAt DateTime         @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+model NotificationPreferences {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  taskUpdates         Boolean  @default(true)
+  taskAssignments     Boolean  @default(true)
+  projectStatus       Boolean  @default(true)
+  applicationUpdates  Boolean  @default(true)
+  memberChanges       Boolean  @default(true)
+  activityAlerts      Boolean  @default(true)
+  systemNotifications Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id          String       @id @default(cuid())
+  action      ActivityType
+  description String
+  metadata    Json?
+  userId      String
+  projectId   String
+  createdAt   DateTime     @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  projectId   String
+  assigneeId  String?
+  createdById String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee  User?   @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy User    @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([status])
+}
+
+// ==================== PROFILE & IDENTITY ====================
+
+model UserProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id])
+  bio             String?
+  skills          String[] // normalized skill tags
+  interests       String[] // interest tags
+  funFacts        Json? // structured fun question answers
+  completionScore Int      @default(0)
+  badges          String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ==================== ENUMS ====================
+
+enum UserType {
+  COMPANY
+  Project_SEEKER
+}
+
+enum ProjectCreatorType {
+  COMPANY
+  USER
+}
+
+enum ProjectPostStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum ProjectVisibility {
+  PRIVATE
+  PUBLIC
+  TEAM
+}
+
+enum ProjectRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum CommitCategory {
+  FEATURE
+  FIX
+  DOCS
+  REFACTOR
+  TEST
+  CHORE
+  STYLE
+  PERF
+}
+
+enum MeetingStatus {
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ActionItemStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MembershipTier {
+  CORE
+  PRO
+  CAPITAL
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  CANCELED
+  PAST_DUE
+}
+
+enum ClubApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum NotificationType {
+  COMMIT
+  MEETING
+  QUESTION
+  MENTION
+  INVITE
+  SYNC_COMPLETE
+  SYNC_FAILED
+  ACTION_ITEM
+  APPLICANT_ACCEPTED
+  TASK_ASSIGNED
+  TASK_UPDATED
+  PROJECT_STATUS_UPDATED
+  APPLICATION_STATUS_UPDATED
+  MEMBER_ADDED_TO_PROJECT
+  MEMBER_REMOVED_FROM_PROJECT
+  MEMBER_ROLE_CHANGED
+  MATCH_RECOMMENDATION
+  WEEKLY_DIGEST
+}
+
+enum ActivityType {
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  PROJECT_ARCHIVED
+  MEMBER_JOINED
+  MEMBER_LEFT
+  COMMIT_SYNCED
+  MEETING_UPLOADED
+  MEETING_PROCESSED
+  QUESTION_ASKED
+  QUESTION_ANSWERED
+  DOCUMENT_GENERATED
+  SYNC_INITIATED
+  PROJECT_STATUS_CHANGED
+  APPLICATION_ACCEPTED
+  APPLICATION_REJECTED
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_COMPLETED
+  MEMBER_ROLE_UPDATED
+  MEMBER_REMOVED
+  FILE_UPLOADED
+  FILE_DELETED
+
+  // SPRINT 4 NEW TYPES:
+  ACCOUNT_LOCKOUT
+  ACCOUNT_RECOVERY
+  MFA_CHALLENGE
+}
+
+enum ProjectLifecycleStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+  EXPIRED
+}
+
+model UserSnapshot {
+  id          String   @id @default(cuid())
+  userId      String
+  riskScore   Int      // The risk score at that specific time
+  baseline    Float    // The avgActionsDay at that specific time
+  vectorData  Json     // Stores [hour, access_frequency, sensitivity_level]
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+}
