@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   const statusFilter =
     statusParam === "ALL"
       ? undefined
-      : { in: ["OPEN", "ASSIGNED", "ACKNOWLEDGED"] as const };
+      : { in: ["OPEN", "ASSIGNED", "ACKNOWLEDGED"] as ("OPEN" | "ASSIGNED" | "ACKNOWLEDGED")[] };
 
   const alerts = await prisma.alert.findMany({
     where: {

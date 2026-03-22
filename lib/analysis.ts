@@ -80,7 +80,7 @@ async function _persistMLResult(userId: string, r: MLAnalysisResult): Promise<vo
         ifScore:              r.if_score  ?? null,
         lstmScore:            r.lstm_score ?? null,
         anomalyFlags:         r.anomaly_flags         ?? {},
-        contributingFeatures: r.contributing_features ?? [],
+        contributingFeatures: (r.contributing_features ?? []) as object[],
         featureVector:        r.feature_vector ? {
           names:  r.feature_names ?? [],
           values: r.feature_vector,

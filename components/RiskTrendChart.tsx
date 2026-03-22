@@ -51,8 +51,7 @@ export default function RiskTrendChart({ snapshots }: { snapshots: any[] }) {
           <Tooltip
             contentStyle={{
               borderRadius: '10px',
-              border: '1px solid #003478',
-              borderOpacity: 0.15,
+              border: '1px solid rgba(0, 52, 120, 0.15)',
               boxShadow: '0 10px 15px -3px rgba(0,52,120,0.1)',
               backgroundColor: '#fff',
               color: '#003478',
