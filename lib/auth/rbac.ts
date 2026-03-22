@@ -73,21 +73,41 @@ export const ROUTE_PERMISSIONS: Array<{ prefix: string; permission: string }> = 
 // Session cookie helpers
 // ---------------------------------------------------------------------------
 
-import { createHmac } from "crypto";
-
 const SESSION_SECRET =
   process.env.SESSION_SECRET ?? "npci-dev-session-secret-change-me";
 
 const COOKIE_NAME = "npci_session";
 const SESSION_TTL_SECONDS = 8 * 60 * 60; // 8 hours
 
+// ---------------------------------------------------------------------------
+// Web Crypto HMAC helper (Edge-compatible — no Node.js crypto module)
+// ---------------------------------------------------------------------------
+
+async function hmacHex(payload: string, secret: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 /**
  * Encode a session object as a signed cookie value.
  * Format: base64url(JSON) + "." + HMAC-SHA256(base64url(JSON))
  */
-export function encodeSession(session: NpciSession): string {
-  const payload = Buffer.from(JSON.stringify(session)).toString("base64url");
-  const sig = createHmac("sha256", SESSION_SECRET).update(payload).digest("hex");
+export async function encodeSession(session: NpciSession): Promise<string> {
+  const payload = btoa(JSON.stringify(session))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+  const sig = await hmacHex(payload, SESSION_SECRET);
   return `${payload}.${sig}`;
 }
 
@@ -95,23 +115,20 @@ export function encodeSession(session: NpciSession): string {
  * Decode and verify a session cookie value.
  * Returns null if the signature is invalid or the session has expired.
  */
-export function decodeSession(cookie: string): NpciSession | null {
+export async function decodeSession(cookie: string): Promise<NpciSession | null> {
   try {
     const dot = cookie.lastIndexOf(".");
     if (dot === -1) return null;
     const payload = cookie.slice(0, dot);
     const sig = cookie.slice(dot + 1);
-    const expected = createHmac("sha256", SESSION_SECRET)
-      .update(payload)
-      .digest("hex");
+    const expected = await hmacHex(payload, SESSION_SECRET);
     // Constant-time comparison
     if (sig.length !== expected.length) return null;
     let diff = 0;
     for (let i = 0; i < sig.length; i++) diff |= sig.charCodeAt(i) ^ expected.charCodeAt(i);
     if (diff !== 0) return null;
-    const session: NpciSession = JSON.parse(
-      Buffer.from(payload, "base64url").toString("utf8"),
-    );
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    const session: NpciSession = JSON.parse(json);
     if (session.exp < Math.floor(Date.now() / 1000)) return null;
     return session;
   } catch {
@@ -120,13 +137,13 @@ export function decodeSession(cookie: string): NpciSession | null {
 }
 
 /** Build Set-Cookie header value for the session cookie. */
-export function buildSessionCookie(role: SecurityRole, userId: string): string {
+export async function buildSessionCookie(role: SecurityRole, userId: string): Promise<string> {
   const session: NpciSession = {
     userId,
     role,
     exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS,
   };
-  const value = encodeSession(session);
+  const value = await encodeSession(session);
   return `${COOKIE_NAME}=${value}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL_SECONDS}`;
 }
 

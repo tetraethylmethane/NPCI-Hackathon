@@ -26,8 +26,6 @@
  * domain — flagged for future schema split.
  */
 
-"use server";
-
 import { prisma } from "@/lib/prisma";
 
 // ---------------------------------------------------------------------------

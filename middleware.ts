@@ -50,7 +50,7 @@ export const config = {
 // Middleware handler
 // ---------------------------------------------------------------------------
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ── Determine required permission for this route ──────────────────────────
@@ -63,7 +63,7 @@ export function middleware(request: NextRequest) {
 
   // ── Extract and verify session cookie ─────────────────────────────────────
   const cookieValue = request.cookies.get(COOKIE_NAME)?.value ?? null;
-  const session = cookieValue ? decodeSession(cookieValue) : null;
+  const session = cookieValue ? await decodeSession(cookieValue) : null;
 
   if (!session) {
     return apiOrRedirect(request, 401, "Authentication required. Please log in.");

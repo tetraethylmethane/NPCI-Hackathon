@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
   // Use a fixed demo user ID so audit logs are traceable
   const demoUserId = `demo-${role.toLowerCase()}`;
-  const cookie = buildSessionCookie(role, demoUserId);
+  const cookie = await buildSessionCookie(role, demoUserId);
 
   const response = NextResponse.redirect(new URL(redirect, request.url));
   response.headers.set("Set-Cookie", cookie);
