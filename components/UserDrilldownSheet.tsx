@@ -44,7 +44,7 @@ interface UserRow {
   isFlagged: boolean;
   status: string;
   lastLocation: string | null;
-  snapshots: { riskScore: number; createdAt: string }[];
+  snapshots: { riskScore: number; createdAt: Date | string }[];
 }
 
 interface SnapshotData {
