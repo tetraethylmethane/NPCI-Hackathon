@@ -1,0 +1,7 @@
+[build]
+dockerfilePath = "ml-service/Dockerfile"
+buildCommand = ""
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 60
