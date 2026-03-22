@@ -23,25 +23,28 @@ export async function GET(req: Request) {
       ? undefined
       : { in: ["OPEN", "ASSIGNED", "ACKNOWLEDGED"] as ("OPEN" | "ASSIGNED" | "ACKNOWLEDGED")[] };
 
-  const alerts = await prisma.alert.findMany({
-    where: {
-      ...(severity ? { severity: severity as any } : {}),
-      ...(statusFilter ? { status: statusFilter } : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          status: true,
-          lastLocation: true,
+  try {
+    const alerts = await prisma.alert.findMany({
+      where: {
+        ...(severity ? { severity: severity as any } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            status: true,
+            lastLocation: true,
+          },
         },
       },
-    },
-  });
-
-  return NextResponse.json({ alerts });
+    });
+    return NextResponse.json({ alerts });
+  } catch {
+    return NextResponse.json({ alerts: [] });
+  }
 }

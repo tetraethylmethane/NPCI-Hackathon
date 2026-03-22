@@ -10,6 +10,7 @@ datasource db {
   url        = env("DATABASE_URL")
   extensions = [pgvector(map: "vector"), pgcrypto]
 }
+
 model User {
   id                    String                 @id @default(cuid())
   name                  String?
@@ -54,18 +55,18 @@ model User {
   alerts                  Alert[]
 
   // SPRINT 2: Behavioral Baselining Fields
-  riskScore     Int       @default(0)    // Current risk level (0-100+)
-  avgActionsDay Float     @default(0.0)  // Behavioral baseline (The "Normal")
-  lastAnalyzed  DateTime?                // Timestamp of last vectorization
+  riskScore     Int       @default(0) // Current risk level (0-100+)
+  avgActionsDay Float     @default(0.0) // Behavioral baseline (The "Normal")
+  lastAnalyzed  DateTime? // Timestamp of last vectorization
   isFlagged     Boolean   @default(false) // Manual or Auto flag for high-risk
 
   // SPRINT 4 NEW FIELDS
-  status        String    @default("ACTIVE") // ACTIVE, LOCKED, or SUSPENDED
-  lastLocation  String?   @default("Mumbai, IN") // For Geo-fencing (stored encrypted in production)
-  isMfaEnabled  Boolean   @default(false)
+  status       String  @default("ACTIVE") // ACTIVE, LOCKED, or SUSPENDED
+  lastLocation String? @default("Mumbai, IN") // For Geo-fencing (stored encrypted in production)
+  isMfaEnabled Boolean @default(false)
 
   // SPRINT 5 — Security role for dashboard RBAC
-  securityRole  SecurityRole @default(VIEWER)
+  securityRole SecurityRole @default(VIEWER)
 }
 
 model Account {
@@ -231,27 +232,27 @@ enum ResourceStatus {
 }
 
 model Resource {
-  id        String         @id @default(cuid())
-  title     String
-  content   String
-  category  String
-  updatedAt DateTime       @updatedAt
-  createdAt DateTime       @default(now())
-  authorId  String?
-  tags      String[]
-  thumbnail String         @default("https://placehold.co/600x300/f0f0f0/999?text=Resource")
-  views     Int            @default(0)
-  slug      String         @unique
-  status    ResourceStatus @default(PENDING)
-  postToTwitter        Boolean   @default(false)
-  postToXcelitSubreddit Boolean   @default(false)
-  postToSubreddits     String[]  @default([])
-  twitterPostUrl       String?
-  redditPostUrls       Json?     // { "subreddit": "url" }
-  reviewedById         String?
-  reviewedAt           DateTime?
-  adminReviewNotes     String?
-  author    User?    @relation(fields: [authorId], references: [id])
+  id                    String         @id @default(cuid())
+  title                 String
+  content               String
+  category              String
+  updatedAt             DateTime       @updatedAt
+  createdAt             DateTime       @default(now())
+  authorId              String?
+  tags                  String[]
+  thumbnail             String         @default("https://placehold.co/600x300/f0f0f0/999?text=Resource")
+  views                 Int            @default(0)
+  slug                  String         @unique
+  status                ResourceStatus @default(PENDING)
+  postToTwitter         Boolean        @default(false)
+  postToXcelitSubreddit Boolean        @default(false)
+  postToSubreddits      String[]       @default([])
+  twitterPostUrl        String?
+  redditPostUrls        Json? // { "subreddit": "url" }
+  reviewedById          String?
+  reviewedAt            DateTime?
+  adminReviewNotes      String?
+  author                User?          @relation(fields: [authorId], references: [id])
 }
 
 model PlatformFeedback {
@@ -302,18 +303,18 @@ model AffiliateWaitlist {
 }
 
 model MembershipSubscription {
-  id                   String             @id @default(cuid())
-  userId               String
-  tier                 MembershipTier
-  status               SubscriptionStatus @default(PENDING)
-  provider             String             @default("PAYPAL")
-  providerOrderId      String?            @unique
-  providerCaptureId    String?            @unique
-  currentPeriodStart   DateTime?
-  currentPeriodEnd     DateTime?
-  autoRenew            Boolean            @default(true)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  id                 String             @id @default(cuid())
+  userId             String
+  tier               MembershipTier
+  status             SubscriptionStatus @default(PENDING)
+  provider           String             @default("PAYPAL")
+  providerOrderId    String?            @unique
+  providerCaptureId  String?            @unique
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  autoRenew          Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
   user     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   payments MembershipPayment[]
@@ -322,17 +323,17 @@ model MembershipSubscription {
 }
 
 model MembershipPayment {
-  id               String   @id @default(cuid())
-  subscriptionId   String
-  userId           String
-  provider         String   @default("PAYPAL")
-  providerOrderId  String
+  id                String   @id @default(cuid())
+  subscriptionId    String
+  userId            String
+  provider          String   @default("PAYPAL")
+  providerOrderId   String
   providerCaptureId String?
-  amount           String
-  currency         String
-  status           String
-  rawPayload       Json?
-  createdAt        DateTime @default(now())
+  amount            String
+  currency          String
+  status            String
+  rawPayload        Json?
+  createdAt         DateTime @default(now())
 
   subscription MembershipSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
   user         User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -342,20 +343,20 @@ model MembershipPayment {
 }
 
 model ClubApplication {
-  id          String                @id @default(cuid())
-  userId      String
-  fullName    String
-  email       String
-  thesis      String
-  linkedinUrl String?
-  website     String?
-  notes       String?
-  status      ClubApplicationStatus @default(PENDING)
+  id               String                @id @default(cuid())
+  userId           String
+  fullName         String
+  email            String
+  thesis           String
+  linkedinUrl      String?
+  website          String?
+  notes            String?
+  status           ClubApplicationStatus @default(PENDING)
   adminReviewNotes String?
-  reviewedById String?
-  reviewedAt   DateTime?
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
+  reviewedById     String?
+  reviewedAt       DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -384,18 +385,18 @@ model ProjectApplication {
 }
 
 model ShareYourWorkSubmission {
-  id                String   @id @default(cuid())
-  fullName          String
-  email             String
-  shortDescription  String   @db.Text
-  message           String?  @db.Text
-  workDepartment    String
-  workLink          String?
-  status            String   @default("PENDING") // PENDING, APPROVED, REJECTED
-  adminReviewNotes  String?  @db.Text
-  reviewedById      String?
-  reviewedAt        DateTime?
-  createdAt         DateTime @default(now())
+  id               String    @id @default(cuid())
+  fullName         String
+  email            String
+  shortDescription String    @db.Text
+  message          String?   @db.Text
+  workDepartment   String
+  workLink         String?
+  status           String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  adminReviewNotes String?   @db.Text
+  reviewedById     String?
+  reviewedAt       DateTime?
+  createdAt        DateTime  @default(now())
 }
 
 model ContactSubmission {
@@ -715,9 +716,9 @@ model UserProfile {
 
 // SPRINT 5 — Dashboard RBAC roles
 enum SecurityRole {
-  ADMIN    // Full access: view all, lock/unlock accounts, dismiss alerts
-  ANALYST  // Alerts + drilldown; cannot lock accounts or view audit log
-  VIEWER   // Summary stats only; no drilldown, no actions
+  ADMIN // Full access: view all, lock/unlock accounts, dismiss alerts
+  ANALYST // Alerts + drilldown; cannot lock accounts or view audit log
+  VIEWER // Summary stats only; no drilldown, no actions
 }
 
 enum UserType {
@@ -888,12 +889,12 @@ enum ProjectLifecycleStatus {
 }
 
 model UserSnapshot {
-  id          String   @id @default(cuid())
-  userId      String
-  riskScore   Int      // The risk score at that specific time
-  baseline    Float    // The avgActionsDay at that specific time
-  vectorData  Json     // Shape: { mlModel, zScore, isAnomaly, featureVector, topFeatures, explanation, timestamp }
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String
+  riskScore  Int // The risk score at that specific time
+  baseline   Float // The avgActionsDay at that specific time
+  vectorData Json // Shape: { mlModel, zScore, isAnomaly, featureVector, topFeatures, explanation, timestamp }
+  createdAt  DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -909,10 +910,10 @@ model Alert {
   riskScore   Int
   severity    AlertSeverity
   confidence  Float         @default(0.0) // ML model confidence [0, 1]
-  explanation Json?         // SHAP top_features array
+  explanation Json? // SHAP top_features array
   status      AlertStatus   @default(OPEN)
-  assignedTo  String?       // Analyst user ID
-  resolution  String?       // "TRUE_POSITIVE" | "FALSE_POSITIVE"
+  assignedTo  String? // Analyst user ID
+  resolution  String? // "TRUE_POSITIVE" | "FALSE_POSITIVE"
   notes       String?       @db.Text
   resolvedAt  DateTime?
   createdAt   DateTime      @default(now())
@@ -945,8 +946,8 @@ enum AlertStatus {
 // Access restricted to ADMIN role only; never exposed via public API routes.
 model IdentityMapping {
   id           String   @id @default(cuid())
-  hashedUserId String   @unique  // SHA-256(original CERT user identifier)
-  originalId   String            // Original CERT user ID (e.g. "ACM2278")
+  hashedUserId String   @unique // SHA-256(original CERT user identifier)
+  originalId   String // Original CERT user ID (e.g. "ACM2278")
   source       String   @default("CERT") // "CERT" | "INTERNAL"
   createdAt    DateTime @default(now())
 
@@ -956,32 +957,32 @@ model IdentityMapping {
 // ==================== SPRINT 2: RISK SNAPSHOT (ML Engine Output) ====================
 
 model RiskSnapshot {
-  id                   String        @id @default(cuid())
-  userId               String
+  id     String @id @default(cuid())
+  userId String
 
   // Composite threat score [0–100] — final output shown on dashboard
-  threatScore          Int
+  threatScore Int
 
   // Per-layer scores (null = layer not run / model not trained)
-  zScore               Float?        // Layer 1: Z-Score value (unbounded; stored raw)
-  ifScore              Float?        // Layer 2: Isolation Forest score [0, 100]
-  lstmScore            Float?        // Layer 3: LSTM reconstruction error [0, 100]
+  zScore    Float? // Layer 1: Z-Score value (unbounded; stored raw)
+  ifScore   Float? // Layer 2: Isolation Forest score [0, 100]
+  lstmScore Float? // Layer 3: LSTM reconstruction error [0, 100]
 
   // Which layers fired above their thresholds
-  anomalyFlags         Json          // { zScore: bool, isoForest: bool, lstm: bool }
+  anomalyFlags Json // { zScore: bool, isoForest: bool, lstm: bool }
 
   // SHAP top-3 feature attributions from explainability layer
-  contributingFeatures Json          // [{ name, label, value, impact, direction }, ...]
+  contributingFeatures Json // [{ name, label, value, impact, direction }, ...]
 
   // Sprint 3 — full 32-dimensional feature vector with lineage
-  featureVector        Json?         // { names: [...], values: [...], groups: {...} }
+  featureVector Json? // { names: [...], values: [...], groups: {...} }
 
   // Audit metadata
-  modelVersion         String        @default("2.0.0")
-  alertGenerated       Boolean       @default(false)
-  severity             AlertSeverity @default(LOW)
+  modelVersion   String        @default("2.0.0")
+  alertGenerated Boolean       @default(false)
+  severity       AlertSeverity @default(LOW)
 
-  createdAt            DateTime      @default(now())
+  createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

@@ -17,6 +17,7 @@ export async function GET(
 ) {
   const { id } = await params;
 
+  try {
   const user = await prisma.user.findUnique({
     where: { id },
     select: {
@@ -62,4 +63,7 @@ export async function GET(
   }
 
   return NextResponse.json({ user });
+  } catch {
+    return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
+  }
 }

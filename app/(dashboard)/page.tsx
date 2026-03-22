@@ -63,18 +63,18 @@ export default async function DashboardPage() {
           select: { riskScore: true, createdAt: true },
         },
       },
-    }),
+    }).catch(() => []),
     prisma.alert.groupBy({
       by: ["severity"],
       where: { status: { in: ["OPEN", "ASSIGNED", "ACKNOWLEDGED"] } },
       _count: { id: true },
-    }),
+    }).catch(() => []),
     prisma.alert.findMany({
       where: { status: { in: ["OPEN", "ASSIGNED", "ACKNOWLEDGED"] } },
       orderBy: { createdAt: "desc" },
       take: 10,
       include: { user: { select: { name: true, email: true } } },
-    }),
+    }).catch(() => []),
   ]);
 
   const countBySeverity: Record<string, number> = {

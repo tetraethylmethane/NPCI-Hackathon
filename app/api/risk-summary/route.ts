@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  try {
   const [totalUsers, flaggedUsers, alertGroups, recentAlerts] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { isFlagged: true } }),
@@ -52,4 +53,11 @@ export async function GET() {
     countBySeverity,
     recentAlerts,
   });
+  } catch {
+    return NextResponse.json({
+      totalUsers: 0, flaggedUsers: 0, totalActiveAlerts: 0,
+      systemRiskLevel: "LOW", countBySeverity: { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 },
+      recentAlerts: [],
+    });
+  }
 }

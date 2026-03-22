@@ -12,8 +12,8 @@ const getRiskStatus = (score: number) => {
 export default async function AdminUserPage() {
   // 2. FETCH THE USERS FROM NEON
   const users = await prisma.user.findMany({
-    orderBy: { riskScore: 'desc' } // High risk at the top!
-  });
+    orderBy: { riskScore: 'desc' }
+  }).catch(() => []);
 
   return (
     <div className="p-8">
