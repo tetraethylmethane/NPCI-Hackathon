@@ -97,7 +97,7 @@ def get_engine(database_url: Optional[str] = None) -> Engine:
 # Upsert helpers
 # ---------------------------------------------------------------------------
 
-def _upsert_project(conn, project_id_holder: list) -> str:
+def _upsert_project(conn, project_id_holder: list, owner_id: str = "") -> str:
     """Upsert the CERT sentinel project. Returns its id."""
     row = conn.execute(
         text('SELECT id FROM "Project" WHERE name = :name LIMIT 1'),
@@ -118,7 +118,7 @@ def _upsert_project(conn, project_id_holder: list) -> str:
             ON CONFLICT DO NOTHING
         """),
         {"id": pid, "name": CERT_PROJECT_NAME,
-         "github": CERT_PROJECT_GITHUB, "uid": pid},  # self-referential placeholder
+         "github": CERT_PROJECT_GITHUB, "uid": owner_id},
     )
     project_id_holder.append(pid)
     logger.info("Created CERT project: %s", pid)
@@ -382,9 +382,11 @@ def seed(
     stats = {}
 
     with engine.begin() as conn:
-        project_id_holder: list = []
-        project_id = _upsert_project(conn, project_id_holder)
+        # Users must exist before the sentinel project (FK constraint)
         user_map = _upsert_users(conn, unique_users)
+        project_id_holder: list = []
+        first_user_id = next(iter(user_map.values()))
+        project_id = _upsert_project(conn, project_id_holder, owner_id=first_user_id)
 
         # Add certEventId column if missing (first run only)
         _ensure_cert_event_id_column(conn)

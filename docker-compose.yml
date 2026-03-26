@@ -8,18 +8,46 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # Mount dataset so the ML service can read CSVs without copying them into the image
-      - ./dataset:/app/../dataset:ro
-      # Persist trained model weights across container restarts
+      - ./dataset:/app/dataset:ro
       - ml_weights:/app/models/weights
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - ANONYMIZATION_SECRET=${ANONYMIZATION_SECRET}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+  log-processor:
+    build:
+      context: ./kafka-pipeline
+      dockerfile: Dockerfile
+    command: ["python", "-m", "consumer.log_processor"]
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
+      - KAFKA_API_KEY=${KAFKA_API_KEY}
+      - KAFKA_API_SECRET=${KAFKA_API_SECRET}
+      - DATABASE_URL=${DATABASE_URL}
+      - ML_SERVICE_URL=${ML_SERVICE_URL:-http://ml-service:8000}
+      - ALERT_THRESHOLD=${ALERT_THRESHOLD:-70}
+    depends_on:
+      ml-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+  alert-consumer:
+    build:
+      context: ./kafka-pipeline
+      dockerfile: Dockerfile
+    command: ["python", "-m", "consumer.alert_consumer"]
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
+      - KAFKA_API_KEY=${KAFKA_API_KEY}
+      - KAFKA_API_SECRET=${KAFKA_API_SECRET}
+      - DATABASE_URL=${DATABASE_URL}
+    restart: unless-stopped
 
 volumes:
   ml_weights:

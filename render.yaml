@@ -1,0 +1,51 @@
+services:
+  # ML FastAPI microservice
+  - type: web
+    name: npci-ml-service
+    runtime: docker
+    dockerfilePath: ./ml-service/Dockerfile
+    dockerContext: ./ml-service
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: ANONYMIZATION_SECRET
+        sync: false
+
+  # Kafka log processor consumer
+  - type: worker
+    name: npci-log-processor
+    runtime: docker
+    dockerfilePath: ./kafka-pipeline/Dockerfile
+    dockerContext: ./kafka-pipeline
+    dockerCommand: python -m consumer.log_processor
+    envVars:
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_API_KEY
+        sync: false
+      - key: KAFKA_API_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: ML_SERVICE_URL
+        sync: false
+      - key: ALERT_THRESHOLD
+        value: "70"
+
+  # Kafka alert consumer
+  - type: worker
+    name: npci-alert-consumer
+    runtime: docker
+    dockerfilePath: ./kafka-pipeline/Dockerfile
+    dockerContext: ./kafka-pipeline
+    dockerCommand: python -m consumer.alert_consumer
+    envVars:
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_API_KEY
+        sync: false
+      - key: KAFKA_API_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false
